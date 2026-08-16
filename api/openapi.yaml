@@ -1,0 +1,69 @@
+openapi: 3.0.3
+info:
+  title: GoFlow CQRS API
+  version: 0.1.0
+  description: Commands write the normalized model; GET endpoints read eventually consistent projections.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      responses: { '200': { description: healthy } }
+  /v1/projects:
+    post:
+      summary: Create a project
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string } } } } } }
+      responses: { '201': { description: project created } }
+  /v1/projects/{projectID}/tasks:
+    post:
+      summary: Create a task
+      parameters: [ { name: projectID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, kind, maxAttempts, timeoutMs], properties: { name: { type: string }, kind: { type: string }, maxAttempts: { type: integer }, timeoutMs: { type: integer } } } } } }
+      responses: { '201': { description: task created } }
+  /v1/tasks/{taskID}/jobs:
+    post:
+      summary: Submit a job
+      parameters: [ { name: taskID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { idempotencyKey: { type: string }, input: { type: object } } } } } }
+      responses: { '201': { description: job queued } }
+  /v1/jobs:
+    get:
+      summary: List projected jobs
+      parameters:
+        - { name: projectId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 20 } }
+      responses: { '200': { description: job view list } }
+  /v1/jobs/{jobID}:
+    get:
+      summary: Get projected job
+      parameters: [ { name: jobID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: job view }, '404': { description: projection not ready or absent } }
+  /v1/jobs/{jobID}/start:
+    post:
+      summary: Start a job (demo worker action)
+      parameters: [ { name: jobID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { workerId: { type: string } } } } } }
+      responses: { '200': { description: running attempt } }
+  /v1/jobs/{jobID}/complete:
+    post:
+      summary: Complete a running job
+      parameters: [ { name: jobID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [attemptId], properties: { attemptId: { type: string, format: uuid } } } } } }
+      responses: { '201': { description: completed } }
+  /v1/jobs/{jobID}/fail:
+    post:
+      summary: Fail a running job
+      parameters: [ { name: jobID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [attemptId, failure], properties: { attemptId: { type: string, format: uuid }, failure: { type: string } } } } } }
+      responses: { '201': { description: failed } }
+  /v1/jobs/{jobID}/retry:
+    post:
+      summary: Schedule retry for a failed job
+      parameters: [ { name: jobID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '201': { description: retrying } }
+  /v1/jobs/{jobID}/cancel:
+    post:
+      summary: Cancel a queued, retrying, or failed job
+      parameters: [ { name: jobID, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '201': { description: cancelled }, '409': { description: invalid state } }

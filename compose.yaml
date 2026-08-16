@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-goflow}
+      POSTGRES_USER: ${POSTGRES_USER:-goflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-goflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - goflow-postgres:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: host=postgres user=${POSTGRES_USER:-goflow} password=${POSTGRES_PASSWORD:-goflow} dbname=${POSTGRES_DB:-goflow} port=5432 sslmode=disable
+      HTTP_ADDR: :8080
+      PROJECTOR_WORKERS: ${PROJECTOR_WORKERS:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:v5.17.14
+    environment:
+      SWAGGER_JSON: /openapi/openapi.yaml
+    volumes:
+      - ./api:/openapi:ro
+    ports:
+      - "8081:8080"
+
+volumes:
+  goflow-postgres:
