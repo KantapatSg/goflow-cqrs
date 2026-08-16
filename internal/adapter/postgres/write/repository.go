@@ -57,7 +57,7 @@ type AttemptModel struct {
 func (AttemptModel) TableName() string { return "job_attempts" }
 
 type OutboxEvent struct {
-	Sequence                int64 `gorm:"primaryKey;autoIncrement"`
+	Sequence                int64     `gorm:"primaryKey;autoIncrement"`
 	EventID                 uuid.UUID `gorm:"type:uuid"`
 	EventType               string
 	SchemaVersion           int
