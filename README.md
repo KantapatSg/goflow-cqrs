@@ -116,6 +116,27 @@ QUEUED / RETRYING / FAILED → CANCELLED
 
 การ cancel Job ที่กำลัง `RUNNING` ยังไม่อยู่ใน initial version เพราะต้องออกแบบ cooperative cancellation ระหว่าง executor, context และ state transition ให้ถูกต้องก่อน
 
+## คำศัพท์สำคัญ
+
+- **CQRS (Command Query Responsibility Segregation)** — แยกเส้นทางที่เปลี่ยนข้อมูล (`Command`) ออกจากเส้นทางที่อ่านข้อมูล (`Query`) เพื่อให้แต่ละด้านมี model ที่เหมาะกับหน้าที่ของตน
+- **Command** — คำสั่งที่อาจเปลี่ยน state ของระบบ เช่น สร้าง Project, ส่ง Job หรือ complete Job
+- **Query** — คำขออ่านข้อมูลที่ไม่เปลี่ยน state เช่น ดู Job, history หรือ dashboard
+- **write model** — ตารางข้อมูลหลักที่เก็บ state แบบ normalized และใช้ตัดสิน business rules
+- **read model** — ตารางที่จัดรูปข้อมูลไว้เพื่ออ่านเร็วและตรงกับหน้าจอ/API อาจ denormalized ได้
+- **Domain Aggregate** — กลุ่มของ entity ที่ต้องรักษา business rules ร่วมกันภายใน transaction เดียวกัน; ในโปรเจกต์นี้ `Job` เป็น aggregate ที่ดูแล state และ `JobAttempt`
+- **Domain Event** — ข้อเท็จจริงที่เกิดขึ้นใน domain เช่น `JobStarted` หรือ `JobCompleted` ซึ่งบอกสิ่งที่เกิดแล้ว ไม่ใช่คำสั่งให้ทำงาน
+- **Transactional Outbox** — รูปแบบที่บันทึก state ของ domain และ event ลงฐานข้อมูลใน transaction เดียวกัน เพื่อไม่ให้เกิดกรณีข้อมูลเปลี่ยนแต่ event สูญหาย
+- **projector** — worker ที่อ่าน event จาก `outbox_events` แล้วอัปเดต `goflow_read` ให้กลายเป็น read model
+- **eventual consistency** — write model อัปเดตสำเร็จก่อน แล้ว read model จะตามมาในเวลาสั้น ๆ ดังนั้น `GET` ทันทีหลัง `POST` อาจยังไม่เห็นข้อมูล
+- **idempotency** — การทำ event เดิมซ้ำแล้วได้ผลลัพธ์สุดท้ายเหมือนเดิม; `projection_receipts` ใช้ป้องกัน projector นับหรือเขียนข้อมูลซ้ำ
+- **optimistic concurrency** — ป้องกัน writer หลายรายแก้ Job เดียวกันพร้อมกันด้วย `version` โดย update จะสำเร็จเมื่อ version ยังตรงกับที่อ่านมา
+- **goroutine** — lightweight concurrent function ของ Go ที่ใช้รัน poller หรือ projector worker
+- **channel** — กลไกส่งข้อมูลระหว่าง goroutine; โปรเจกต์ใช้ bounded channel เพื่อทำ backpressure ระหว่าง poller กับ worker
+- **worker pool** — กลุ่ม worker หลายตัวที่รับงานจาก channel เพื่อเพิ่ม throughput โดยจำกัดจำนวนงาน concurrent
+- **GORM** — ORM ที่ใช้กับ write side และ transaction ของ Command
+- **`database/sql`** — standard library package ที่ใช้ query read model ด้วย SQL แบบ explicit
+- **OpenAPI / Swagger UI** — OpenAPI เป็นเอกสารสัญญาของ HTTP API; Swagger UI คือหน้าเว็บสำหรับอ่านและทดลอง call API จาก browser
+
 ## ดู state ของ Job และ worker ในฐานข้อมูล
 
 หลังทดลอง API สามารถดูผลลัพธ์ได้จากตารางต่อไปนี้:
